@@ -6,26 +6,28 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"taskmanager/repo"
 
 	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 )
 
 type server struct {
-	DB    *DB
-	Redis *Redis
+	userRepo *repo.UserRepository
 }
-
-type DB struct {
-	*sql.DB
-}
-type Redis struct{}
 
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Request received", "method", r.Method, "url", r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *server) routes() http.Handler {
+	mux := http.NewServeMux()
+	// Register handlers here and pass s.userRepo into them or into a service layer.
+
+	return Middleware(mux)
 }
 
 func main() {
@@ -53,9 +55,13 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
 	}
-	mux := http.NewServeMux()
-	//mux.HandleFunc("/login", auth.LoginHandler)
+
+	userRepo := repo.NewUserRepository(db)
+
+	svr := &server{
+		userRepo: userRepo,
+	}
 
 	slog.Info("Starting server on " + port)
-	log.Fatal(http.ListenAndServe(port, mux))
+	log.Fatal(http.ListenAndServe(port, svr.routes()))
 }
