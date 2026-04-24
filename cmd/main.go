@@ -6,15 +6,19 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"taskmanager/auth"
+	"taskmanager/handlers/auth"
 	"taskmanager/repo"
+	authservice "taskmanager/service/authService"
 
 	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 )
 
 type server struct {
-	userRepo *repo.UserRepository
+	userRepo    *repo.UserRepository
+	authService authservice.AuthServicer
+
+	router *http.ServeMux
 }
 
 func CROSHeadersMiddleware(next http.Handler) http.Handler {
@@ -38,27 +42,18 @@ func Middleware(next http.Handler) http.Handler {
 
 func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
-	// Register handlers here and pass s.userRepo into them or into a service layer.
+	authHandler := auth.NewServer(s.authService)
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		auth.LoginHandler(w, r, s.userRepo)
+		authHandler.LoginHandler(w, r)
 	})
 	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
-		auth.RegisterHandler(w, r, s.userRepo)
+		authHandler.RegisterHandler(w, r)
 	})
 
 	return CROSHeadersMiddleware(Middleware(mux))
 }
 
-func main() {
-
-	viper.SetConfigFile("config/config.yaml")
-	viper.AutomaticEnv()
-	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file: %v", err)
-	}
-
-	port := ":" + viper.GetString("server.port")
-
+func initDB() *sql.DB {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		viper.GetString("database.host"),
 		viper.GetString("database.port"),
@@ -70,15 +65,32 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error connecting to database: %v", err)
 	}
-	defer db.Close()
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
 	}
+	return db
+}
+func main() {
 
+	viper.SetConfigFile("config/config.yaml")
+	viper.AutomaticEnv()
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatalf("Error reading config file: %v", err)
+	}
+	db := initDB()
 	userRepo := repo.NewUserRepository(db)
 
+	authService := authservice.NewAuthService(
+		userRepo,
+		viper.GetString("token.jwt_secret"),
+		viper.GetString("token.issuer"),
+	)
+	port := ":" + viper.GetString("server.port")
+
 	svr := &server{
-		userRepo: userRepo,
+		userRepo:    userRepo,
+		authService: authService,
+		router:      http.NewServeMux(),
 	}
 
 	slog.Info("Starting server on " + port)

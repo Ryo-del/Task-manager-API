@@ -3,8 +3,6 @@ package repo
 import (
 	"context"
 	"database/sql"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type UserRepository struct {
@@ -22,19 +20,10 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 	}
 }
 
-func (r *UserRepository) CreateUser(login, password string, ctx context.Context) error {
-	password = HashPassword(password)
+func (r *UserRepository) CreateUser(login, HashPassword string, ctx context.Context) error {
 	query := "INSERT INTO users (login, password) VALUES ($1, $2)"
-	_, err := r.db.ExecContext(ctx, query, login, password)
+	_, err := r.db.ExecContext(ctx, query, login, HashPassword)
 	return err
-}
-
-func HashPassword(password string) string {
-	Hashpas, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
-	}
-	return string(Hashpas)
 }
 
 func (r *UserRepository) GetUserByLogin(login string, ctx context.Context) (User, error) {
