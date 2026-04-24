@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <input type="text" id="input" placeholder="login">
+    <input type="password" id="password" placeholder="password">
+
+    <button id="button">Click me</button>
+<script>
+    backendUrl = 'http://localhost:8080';
+    document.getElementById('button').addEventListener('click', async () => {
+        const login = document.getElementById('input').value;
+        const password = document.getElementById('password').value;
+
+        const response = await fetch(`${backendUrl}/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ login, password })
+        });
+
+        if (response.ok) {
+            alert('User registered successfully!');
+        } else {
+            alert('Failed to register user.');
+        }
+    });
+</script>
+</body>
+</html>

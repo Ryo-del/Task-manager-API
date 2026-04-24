@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"taskmanager/auth"
 	"taskmanager/repo"
 
 	_ "github.com/lib/pq"
@@ -16,9 +17,21 @@ type server struct {
 	userRepo *repo.UserRepository
 }
 
+func CROSHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Request received", "method", r.Method, "url", r.URL.Path)
+		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -26,8 +39,14 @@ func Middleware(next http.Handler) http.Handler {
 func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
 	// Register handlers here and pass s.userRepo into them or into a service layer.
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		auth.LoginHandler(w, r, s.userRepo)
+	})
+	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		auth.RegisterHandler(w, r, s.userRepo)
+	})
 
-	return Middleware(mux)
+	return CROSHeadersMiddleware(Middleware(mux))
 }
 
 func main() {

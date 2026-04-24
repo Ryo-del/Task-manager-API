@@ -1,7 +1,10 @@
 package repo
 
 import (
+	"context"
 	"database/sql"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserRepository struct {
@@ -19,14 +22,26 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 	}
 }
 
-func (r *UserRepository) CreateUser(login, password string) error {
-	_, err := r.db.Exec("INSERT INTO users (login, password) VALUES ($1, $2)", login, password)
+func (r *UserRepository) CreateUser(login, password string, ctx context.Context) error {
+	password = HashPassword(password)
+	query := "INSERT INTO users (login, password) VALUES ($1, $2)"
+	_, err := r.db.ExecContext(ctx, query, login, password)
 	return err
 }
 
-func (r *UserRepository) GetUserByLogin(login string) (User, error) {
+func HashPassword(password string) string {
+	Hashpas, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
+	}
+	return string(Hashpas)
+}
+
+func (r *UserRepository) GetUserByLogin(login string, ctx context.Context) (User, error) {
+
 	var user User
-	err := r.db.QueryRow("SELECT id, login, password FROM users WHERE login = $1", login).Scan(&user.ID, &user.Login, &user.Password)
+	query := "SELECT id, login, password FROM users WHERE login = $1"
+	err := r.db.QueryRowContext(ctx, query, login).Scan(&user.ID, &user.Login, &user.Password)
 	if err != nil {
 		return User{}, err
 	}
